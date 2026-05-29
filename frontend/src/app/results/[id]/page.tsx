@@ -105,9 +105,10 @@ export default function ResultsPage() {
   const params   = useParams();
   const id       = params?.id as string;
 
-  const [data,      setData]      = useState<ScriptData | null>(null);
-  const [fetchErr,  setFetchErr]  = useState("");
-  const [starting,  setStarting]  = useState(false);
+  const [data,             setData]             = useState<ScriptData | null>(null);
+  const [fetchErr,         setFetchErr]         = useState("");
+  const [starting,         setStarting]         = useState(false);
+  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPoll = () => {
@@ -137,7 +138,12 @@ export default function ResultsPage() {
   }, [fetchData]);
 
   useEffect(() => {
-    fetchData().then((status) => { if (status === "processing") startPolling(); });
+    fetchData().then((status) => {
+      if (status === "processing") {
+        setAnalysisStartedAt(Date.now());
+        startPolling();
+      }
+    });
     return stopPoll;
   }, [id]);
 
@@ -146,6 +152,7 @@ export default function ResultsPage() {
     try {
       const res = await fetch(`${API}/api/scripts/${id}/analyze`, { method: "POST" });
       if (!res.ok) { const t = await res.text(); throw new Error(t || `HTTP ${res.status}`); }
+      setAnalysisStartedAt(Date.now());
       await fetchData();
       startPolling();
     } catch (e) {
@@ -242,23 +249,22 @@ export default function ResultsPage() {
         )}
 
         {isProcessing && (
-          <div className="anim-up-1 mb-8 rounded-xs overflow-hidden"
-            style={{ border: "1px solid rgba(201,168,76,0.2)" }}>
-            <div className="px-6 py-5 flex items-center gap-4"
-              style={{ background: "rgba(201,168,76,0.05)" }}>
-              <div className="w-5 h-5 border border-gold/40 border-t-gold rounded-full animate-spin shrink-0" />
-              <div>
-                <p className="text-gold text-sm font-medium" style={{ fontFamily: "var(--font-cinzel)", letterSpacing: "0.1em" }}>
-                  AI IS ANALYZING YOUR SCRIPT
-                </p>
-                <p className="text-smoke text-xs mt-0.5" style={{ fontFamily: "var(--font-dm-sans)" }}>
-                  This takes 30–90 seconds. Page updates automatically.
-                </p>
-              </div>
-            </div>
-            {/* Animated progress bar */}
-            <div className="h-0.5 w-full" style={{ background: "rgba(201,168,76,0.1)" }}>
-              <div className="h-full animate-pulse" style={{ background: "linear-gradient(90deg, transparent, #c9a84c, transparent)", width: "60%" }} />
+          <div className="anim-up-1 mb-8 rounded-xs p-8 flex flex-col sm:flex-row items-center gap-8"
+            style={{ background: "rgba(201,168,76,0.04)", border: "1px solid rgba(201,168,76,0.18)" }}>
+            <CircularProgress startedAt={analysisStartedAt ?? Date.now()} />
+            <div>
+              <p className="text-gold font-semibold mb-1.5 tracking-[0.12em]"
+                style={{ fontFamily: "var(--font-cinzel)", fontSize: "0.85rem" }}>
+                AI IS ANALYZING YOUR SCRIPT
+              </p>
+              <p className="text-fog text-sm mb-3"
+                style={{ fontFamily: "var(--font-dm-sans)", fontWeight: 300 }}>
+                Running genre detection, scene analysis, character identification,
+                and generating improvement suggestions.
+              </p>
+              <p className="text-smoke text-xs" style={{ fontFamily: "var(--font-dm-sans)" }}>
+                Estimated time: 30–90 seconds · Page updates automatically
+              </p>
             </div>
           </div>
         )}
@@ -522,6 +528,74 @@ export default function ResultsPage() {
           </a>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+// ── Circular progress component ───────────────────────────────────────────────
+
+function CircularProgress({ startedAt }: { startedAt: number }) {
+  const [pct, setPct] = useState(0);
+
+  useEffect(() => {
+    const tick = () => {
+      const elapsed = (Date.now() - startedAt) / 1000;
+      // Asymptotic curve: fast start, slows as it approaches 95%
+      const estimated = Math.round(95 * (1 - Math.exp(-elapsed / 50)));
+      setPct(Math.min(95, estimated));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - pct / 100);
+
+  return (
+    <div className="relative shrink-0 w-32 h-32">
+      <svg className="w-full h-full" viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
+        {/* Track */}
+        <circle
+          cx="60" cy="60" r={radius}
+          fill="none"
+          stroke="rgba(201,168,76,0.1)"
+          strokeWidth="7"
+        />
+        {/* Progress arc */}
+        <circle
+          cx="60" cy="60" r={radius}
+          fill="none"
+          stroke="url(#gold-grad)"
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)" }}
+        />
+        <defs>
+          <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#8a6e2a" />
+            <stop offset="100%" stopColor="#f5dfa0" />
+          </linearGradient>
+        </defs>
+      </svg>
+      {/* Label */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span
+          className="text-3xl font-bold text-gold tabular-nums leading-none"
+          style={{ fontFamily: "var(--font-cinzel)" }}
+        >
+          {pct}
+        </span>
+        <span
+          className="text-smoke text-xs mt-0.5"
+          style={{ fontFamily: "var(--font-dm-sans)", letterSpacing: "0.1em" }}
+        >
+          %
+        </span>
       </div>
     </div>
   );
