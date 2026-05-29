@@ -26,6 +26,17 @@ services:
     volumes:
       - ./backend:/app
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Browser calls the backend directly — use the host-mapped port
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     ports:
@@ -34,8 +45,6 @@ services:
       - ./backend/.env        # provides AWS_* and MLFLOW_ARTIFACT_ROOT
     depends_on:
       - db
-    # Uses shell so container-env vars (from env_file) expand inside the command.
-    # Backend store: SQLite for local dev. For production, swap to your RDS URI.
     command: >
       sh -c "pip install boto3 -q &&
       mlflow server
