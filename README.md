@@ -192,6 +192,3 @@ GitHub Actions runs on every push to `main`:
 
 ---
 
-## License
-
-MIT
