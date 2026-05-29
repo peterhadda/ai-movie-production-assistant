@@ -25,12 +25,12 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
+      - mlflow_data:/mlflow   # shared with mlflow service — writes tracking files directly
 
   frontend:
     build:
       context: ./frontend
       args:
-        # Browser calls the backend directly — use the host-mapped port
         NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
@@ -41,21 +41,13 @@ services:
     image: ghcr.io/mlflow/mlflow:latest
     ports:
       - "5001:5000"
-    env_file:
-      - ./backend/.env        # provides AWS_* and MLFLOW_ARTIFACT_ROOT
-    environment:
-      # Allow requests from the backend container (Host: mlflow:5000)
-      MLFLOW_ALLOWED_HOSTS: "mlflow,localhost,127.0.0.1,backend,0.0.0.0"
-    depends_on:
-      - db
+    # Reads from the same volume the backend writes to — no HTTP between them
     command: >
-      sh -c "pip install boto3 -q &&
       mlflow server
       --host 0.0.0.0
       --port 5000
-      --backend-store-uri sqlite:///mlflow/mlflow.db
-      --default-artifact-root $${MLFLOW_ARTIFACT_ROOT}
-      --allowed-hosts mlflow,localhost,127.0.0.1,backend"
+      --backend-store-uri /mlflow/tracking
+      --default-artifact-root /mlflow/artifacts
     volumes:
       - mlflow_data:/mlflow
 
