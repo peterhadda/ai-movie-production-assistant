@@ -30,15 +30,24 @@ services:
     image: ghcr.io/mlflow/mlflow:latest
     ports:
       - "5001:5000"
+    env_file:
+      - ./backend/.env        # provides AWS_* and MLFLOW_ARTIFACT_ROOT
+    depends_on:
+      - db
+    # Uses shell so container-env vars (from env_file) expand inside the command.
+    # Backend store: SQLite for local dev. For production, swap to your RDS URI.
     command: >
+      sh -c "pip install boto3 -q &&
       mlflow server
       --host 0.0.0.0
       --port 5000
-      --default-artifact-root /mlflow/artifacts
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root $${MLFLOW_ARTIFACT_ROOT}"
     volumes:
-      - ./mlflow/artifacts:/mlflow/artifacts
+      - mlflow_data:/mlflow
 
   # airflow — to be added in Week 7
 
 volumes:
   postgres_data:
+  mlflow_data:

@@ -502,7 +502,91 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {/* ── Rating widget ──────────────────────────────────────────────── */}
+        {isComplete && <RatingWidget scriptId={id} apiBase={API} />}
+
+        {/* ── MLflow link ────────────────────────────────────────────────── */}
+        <div className="mt-6 text-center">
+          <a
+            href="http://localhost:5001"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-smoke/50 hover:text-gold transition-colors duration-300 text-xs"
+            style={{ fontFamily: "var(--font-dm-sans)", letterSpacing: "0.1em" }}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+            View in MLflow ↗
+          </a>
+        </div>
+
       </div>
+    </div>
+  );
+}
+
+// ── Rating widget component ───────────────────────────────────────────────────
+
+function RatingWidget({ scriptId, apiBase }: { scriptId: string; apiBase: string }) {
+  const [selected,  setSelected]  = useState(0);
+  const [hovered,   setHovered]   = useState(0);
+  const [submitted, setSubmitted] = useState(false);
+  const [loading,   setLoading]   = useState(false);
+
+  const submit = async () => {
+    if (!selected) return;
+    setLoading(true);
+    try {
+      await fetch(`${apiBase}/api/scripts/${scriptId}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score: selected }),
+      });
+      setSubmitted(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="mt-10 text-center">
+        <p className="text-gold/60 text-xs tracking-[0.2em]" style={{ fontFamily: "var(--font-dm-sans)" }}>
+          Thank you — your feedback improves the model.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-10 pt-8 border-t border-gold/10 text-center">
+      <p className="text-smoke text-xs tracking-[0.18em] uppercase mb-4"
+        style={{ fontFamily: "var(--font-dm-sans)" }}>
+        How accurate was this analysis?
+      </p>
+      <div className="flex items-center justify-center gap-2 mb-5">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            onClick={() => setSelected(star)}
+            onMouseEnter={() => setHovered(star)}
+            onMouseLeave={() => setHovered(0)}
+            className="text-2xl transition-transform duration-100 hover:scale-110 focus:outline-none"
+            style={{ color: star <= (hovered || selected) ? "#c9a84c" : "#3a3530" }}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={submit}
+        disabled={!selected || loading}
+        className="btn-gold px-8 py-2.5 rounded-xs text-xs gap-2"
+      >
+        {loading ? "Submitting…" : "Submit Rating"}
+      </button>
     </div>
   );
 }

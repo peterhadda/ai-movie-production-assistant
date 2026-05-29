@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
@@ -17,11 +18,15 @@ from app.schemas.script_schemas import (
     StatusResponse,
     SuggestionItem,
 )
-from app.services import s3_service
+from app.services import mlflow_service, s3_service
 from app.services.scene_parser import parse_scenes
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class RatingRequest(BaseModel):
+    score: float = Field(..., ge=1.0, le=5.0)
 
 
 def _utcnow() -> datetime:
@@ -199,6 +204,22 @@ def get_script_status(script_id: int, db: Session = Depends(get_db)):
 
     scene_count = script.analyses[0].scene_count if script.analyses else None
     return StatusResponse(job_id=script.id, status=script.status, scene_count=scene_count)
+
+
+# ── Rate analysis quality ─────────────────────────────────────────────────────
+
+@router.post("/{script_id}/rate")
+def rate_analysis(script_id: int, body: RatingRequest, db: Session = Depends(get_db)):
+    script = db.get(Script, script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found.")
+
+    analysis: Optional[Analysis] = script.analyses[0] if script.analyses else None
+    if not analysis:
+        raise HTTPException(status_code=404, detail="No analysis found for this script.")
+
+    mlflow_service.update_quality_score(analysis.mlflow_run_id, body.score)
+    return {"status": "ok", "score": body.score}
 
 
 # ── List all scripts ──────────────────────────────────────────────────────────

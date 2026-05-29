@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import check_db_connection, init_db
 from app.routers import scripts
+from app.services import mlflow_service
 import app.models  # noqa: F401 — registers all models with Base.metadata
 
 app = FastAPI(title="AI Movie Production Assistant", version="0.1.0")
@@ -15,13 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 app.include_router(scripts.router, prefix="/api/scripts", tags=["scripts"])
 
 
 @app.on_event("startup")
 def on_startup():
     init_db()
+    mlflow_service.setup_experiment()
 
 
 @app.get("/health")
